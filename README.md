@@ -1,5 +1,7 @@
-GUI‑приложение для аннотации **скелетных ключевых точек** на изображениях и кадрах из видео.  
-Поддерживает пользовательские скелеты, **автоаннотацию** через Ultralytics YOLO и экспорт в **YOLO keypoints формат** для обучения.
+# skelet-annotator
+
+A GUI application for annotating **skeletal keypoints** on images and extracted video frames.  
+Supports custom skeletons, **auto-annotation** via Ultralytics YOLO, and export to the **YOLO keypoints format** for training.
 
 <div align="center">
   <img src="docs/screenshot_main.png" width="600"/>
@@ -11,57 +13,62 @@ GUI‑приложение для аннотации **скелетных клю
 
 ---
 
-## 🚀 Возможности
+## 🚀 Features
 
-- Загрузка **папки с изображениями** или **видео** (кадры извлекаются автоматически).
-- Настройка скелета: импорт из JSON или ручной ввод _keypoints_ и их _connections_.
-- Удобная разметка: добавление/перетаскивание точек, таблица координат, горячие клавиши.
-- **Автоаннотация** с использованием YOLO‑модели (Ultralytics) прямо из GUI.
-- **Интерполяция** точек между размеченными кадрами.
-- Экспорт аннотаций:
-  - **JSON** (keypoints + bbox по пользовательским точкам),
-  - **YOLO** (bbox из модели + keypoints пользователя, формат Ultralytics).
+- Load an **image folder** or a **video** (frames are extracted automatically).
+- Skeleton setup: import from JSON or define _keypoints_ and _connections_ manually.
+- Convenient labeling: add/drag keypoints, live table of coordinates, keyboard shortcuts.
+- **Auto-annotation** using an Ultralytics YOLO model directly from the GUI.
+- **Interpolation** of keypoints between annotated frames.
+- Export annotations to:
+  - **JSON** (keypoints + bbox computed from user keypoints),
+  - **YOLO** (bbox from the model + user keypoints, Ultralytics keypoints format).
 
 ---
 
 ## 📦 Installation
 
-### Вариант A. Conda + pip (рекомендуется)
+### Option A. Conda + pip (recommended)
 
-Создайте и активируйте среду:
+Create and activate an environment:
 ```bash
 conda create -n cv python=3.12 -y
 conda activate cv
 ```
 
-Установите основные зависимости conda и все pip‑пакеты проекта (включая PySide6 и PyTorch):
+Install core conda deps and all project pip packages (including PySide6 and PyTorch):
 ```bash
 conda install -y numpy pandas scipy matplotlib ipykernel
+
+# GUI + computer vision + utilities
 pip install pyside6 shiboken6 ultralytics ultralytics-thop opencv-python pyqtgraph pylsl tqdm sympy requests jinja2 pillow colorama psutil py-cpuinfo PyYAML typing-extensions
-# Если нужен Torch с CUDA, ставьте подходящее колесо под вашу систему/драйвер:
+
+# PyTorch (choose the wheel appropriate for your system/driver)
+# CUDA example:
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
-# (или CPU-вариант: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu)
+# or CPU-only:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
-### Вариант B. По файлам окружения
+### Option B. Using environment files
 
-Если в репозитории есть `environment.yml` и/или `requirements.txt`:
+If the repo contains `environment.yml` and/or `requirements.txt`:
 ```bash
 conda env create -f environment.yml
 conda activate cv
-# или
+# or
 pip install -r requirements.txt
 ```
 
-> **Важно (Windows):** PySide6 рекомендуется устанавливать **через pip**, а не через conda, чтобы избежать конфликтов Qt‑DLL.
+> **Windows tip:** Install **PySide6 via pip** (not conda) to avoid Qt DLL conflicts.
 
 ---
 
-## 📂 Data preparation
+## 📂 Data Preparation
 
-Можно указать **папку с изображениями** или выбрать **видео** — приложение предложит извлечь кадры.
+You can either select an **image directory** or a **video file**—the app will offer to extract frames.
 
-Структура примерная:
+Example structure:
 ```
 data/
 ├── image_0001.jpg
@@ -70,28 +77,28 @@ data/
 └── video_1.mp4
 ```
 
-Для автоаннотации загрузите модель Ultralytics YOLO (keypoints). Руководство и модели:  
+For auto-annotation, load an Ultralytics YOLO **keypoints** model (`.pt`). See:  
 https://docs.ultralytics.com/tasks/keypoints/
 
 ---
 
 ## ▶️ Getting Started
 
-Запуск GUI:
+Run the GUI:
 ```bash
 python labelboxV3.py
 ```
 
-Основные шаги в приложении:
-1. **Выберите данные**: папку с изображениями или видео для извлечения кадров.
-2. **Сконфигурируйте скелет**: меню **Файл → Настроить скелет** (ручной ввод или импорт из JSON).
-3. **(Опционально) Загрузите YOLO‑модель**: кнопка «папка» на панели слева → `.pt` файл (Ultralytics).
-4. Размечайте точки кликом мыши, перетаскивайте при необходимости.
-5. Используйте **«Интерполировать»** для заполнения промежуточных кадров.
-6. Сохраните аннотации: **Файл → Сохранить аннотации как…** (JSON).
-7. Экспортируйте в **YOLO**: **Файл → Сохранить в YOLO формат** (разобьёт на `train/val`).
+Typical workflow:
+1. **Choose data**: an image folder or a video to extract frames.
+2. **Configure the skeleton**: **File → Setup Skeleton** (manual entry or import from JSON).
+3. **(Optional) Load a YOLO model**: left toolbar “open” button → select `.pt` (Ultralytics).
+4. Annotate points by clicking; drag to adjust positions.
+5. Use **“Interpolate”** to fill in keypoints on in-between frames.
+6. Save annotations: **File → Save Annotations As…** (JSON).
+7. Export to **YOLO**: **File → Save in YOLO format** (splits into `train/val`).
 
-Структура экспорта YOLO:
+YOLO export structure:
 ```
 dataset/
 ├── images/
@@ -101,12 +108,11 @@ dataset/
     ├── train/
     └── val/
 ```
-
-Каждый `.txt` содержит строку с bbox (из модели) и keypoints (из пользовательской разметки) в формате Ultralytics.
+Each `.txt` line includes a bbox (from the model) and keypoints (from user annotations) in Ultralytics format.
 
 ---
 
-## 🧩 Пример JSON со скелетом
+## 🧩 Example Skeleton JSON
 
 ```json
 {
@@ -129,32 +135,32 @@ dataset/
   ]
 }
 ```
-Загрузите его через **Файл → Настроить скелет → Загрузить скелет из файла (JSON)**.
+Load it via **File → Setup Skeleton → Load from JSON**.
 
 ---
 
-## 💾 Формат сохранения
+## 💾 Save Formats
 
-- **JSON** — хранит `keypoints`, `connections` и координаты точек для каждого изображения. Также автоматически добавляется `bbox` по размеченным точкам.
-- **YOLO** — берёт **bbox из модели** (Ultralytics) и добавляет **ваши keypoints** в формате Ultralytics (нормализованные координаты + конфиденс). Файлы автоматически раскладываются по `train/val`.
+- **JSON** — stores `keypoints`, `connections`, and per-image coordinates. A `bbox` is also computed from user keypoints.
+- **YOLO** — uses **bbox from the model** (Ultralytics) and adds **your keypoints** in Ultralytics keypoints format (normalized coordinates + confidence). Files are automatically split into `train/val` sets.
 
 ---
 
 ## ⛑️ Troubleshooting (Windows)
 
-Если при запуске видите
+If you see:
 ```
 qt.qpa.plugin: Could not load the Qt platform plugin "windows" ...
 ```
-Это обычно конфликт путей к Qt‑плагинам. Решения:
+this is typically a Qt plugin path conflict. Fixes:
 
-1) Убедитесь, что PySide6/shiboken6 установлены через **pip** в активной среде.
+1) Ensure PySide6/shiboken6 are installed **via pip** in the active env.
 ```powershell
 pip install --force-reinstall PySide6 shiboken6
 python -c "import PySide6, shiboken6; print(PySide6.__version__)"
 ```
 
-2) Сбросьте «лишние» переменные окружения и укажите путь к платформенным плагинам:
+2) Reset conflicting env vars and point to the platform plugins path:
 ```powershell
 $env:QT_DEBUG_PLUGINS="1"
 Remove-Item Env:QT_PLUGIN_PATH -ErrorAction SilentlyContinue
@@ -162,13 +168,13 @@ $env:QT_QPA_PLATFORM_PLUGIN_PATH = "$((python -c 'import pathlib,PySide6; print(
 python labelboxV3.py
 ```
 
-3) Не смешивайте conda‑версии Qt с pip‑версиями в одной среде.
+3) Do not mix conda Qt with pip Qt in the same environment.
 
 ---
 
 ## 📜 License
 
-MIT (или укажите свою лицензию).
+MIT (or specify your own license).
 
 ---
 
