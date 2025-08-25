@@ -1,7 +1,7 @@
-# skelet-annotator
+# Pose annotator
 
-A GUI application for annotating **skeletal keypoints** on images and extracted video frames.  
-Supports custom skeletons, **auto-annotation** via Ultralytics YOLO, and export to the **YOLO keypoints format** for training.
+A GUI application for annotating **pose keypoints** on images and extracted video frames.  
+Supports custom skeletons, **auto-annotation** via Ultralytics, and export to the **YOLO keypoints format** for training.
 
 <div align="center">
   <img src="figures/main_page.png" width="600"/>
@@ -25,36 +25,13 @@ Supports custom skeletons, **auto-annotation** via Ultralytics YOLO, and export 
 
 ## 📦 Installation
 
-### Option A. Conda + pip (recommended)
-
-Create and activate an environment:
-```bash
-conda create -n cv python=3.12 -y
-conda activate cv
-```
-
-Install core conda deps and all project pip packages (including PySide6 and PyTorch):
-```bash
-conda install -y numpy pandas scipy matplotlib ipykernel
-
-# GUI + computer vision + utilities
-pip install pyside6 shiboken6 ultralytics ultralytics-thop opencv-python pyqtgraph pylsl tqdm sympy requests jinja2 pillow colorama psutil py-cpuinfo PyYAML typing-extensions
-
-# PyTorch (choose the wheel appropriate for your system/driver)
-# CUDA example:
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
-# or CPU-only:
-# pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-```
-
-### Option B. Using environment files
-
-If the repo contains `environment.yml` and/or `requirements.txt`:
+Create an environment using yml file:
 ```bash
 conda env create -f environment.yml
 conda activate cv
-# or
-pip install -r requirements.txt
+# for gpu inference needs cuda PyTorch (choose the wheel appropriate for your system/driver)
+# CUDA example:
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 ```
 
 > **Windows tip:** Install **PySide6 via pip** (not conda) to avoid Qt DLL conflicts.
@@ -105,8 +82,6 @@ dataset/
     ├── train/
     └── val/
 ```
-Each `.txt` line includes a bbox (from the model) and keypoints (from user annotations) in Ultralytics format.
-
 ---
 
 ## 🧩 Example Skeleton JSON
@@ -133,49 +108,3 @@ Each `.txt` line includes a bbox (from the model) and keypoints (from user annot
 }
 ```
 Load it via **File → Setup Skeleton → Load from JSON**.
-
----
-
-## 💾 Save Formats
-
-- **JSON** — stores `keypoints`, `connections`, and per-image coordinates. A `bbox` is also computed from user keypoints.
-- **YOLO** — uses **bbox from the model** (Ultralytics) and adds **your keypoints** in Ultralytics keypoints format (normalized coordinates + confidence). Files are automatically split into `train/val` sets.
-
----
-
-## ⛑️ Troubleshooting (Windows)
-
-If you see:
-```
-qt.qpa.plugin: Could not load the Qt platform plugin "windows" ...
-```
-this is typically a Qt plugin path conflict. Fixes:
-
-1) Ensure PySide6/shiboken6 are installed **via pip** in the active env.
-```powershell
-pip install --force-reinstall PySide6 shiboken6
-python -c "import PySide6, shiboken6; print(PySide6.__version__)"
-```
-
-2) Reset conflicting env vars and point to the platform plugins path:
-```powershell
-$env:QT_DEBUG_PLUGINS="1"
-Remove-Item Env:QT_PLUGIN_PATH -ErrorAction SilentlyContinue
-$env:QT_QPA_PLATFORM_PLUGIN_PATH = "$((python -c 'import pathlib,PySide6; print((pathlib.Path(PySide6.__file__).parent / \"plugins\" / \"platforms\").as_posix())'))"
-python labelboxV3.py
-```
-
-3) Do not mix conda Qt with pip Qt in the same environment.
-
----
-
-## 📜 License
-
-MIT (or specify your own license).
-
----
-
-## 🙌 Acknowledgements
-
-- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
-- Qt for Python (PySide6)
