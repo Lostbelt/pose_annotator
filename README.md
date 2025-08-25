@@ -4,12 +4,9 @@ A GUI application for annotating **skeletal keypoints** on images and extracted 
 Supports custom skeletons, **auto-annotation** via Ultralytics YOLO, and export to the **YOLO keypoints format** for training.
 
 <div align="center">
-  <img src="docs/screenshot_main.png" width="600"/>
+  <img src="figures/main_page.png" width="600"/>
 </div>
 
-<div align="center">
-  <img src="docs/screenshot_points.png" width="420"/>
-</div>
 
 ---
 
