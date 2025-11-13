@@ -6,23 +6,22 @@ from typing import Dict, List, Tuple, Optional, Callable
 
 import cv2
 import numpy as np
+import yaml
 
-# Опциональные GUI-типы (для окраски элементов списка)
-try:
-    from PySide6.QtGui import QColor
-    from PySide6.QtWidgets import QListWidgetItem
-except Exception:  # PySide6 может отсутствовать при headless-скриптах
-    QColor = None
-    QListWidgetItem = object  # type: ignore
+
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QListWidgetItem
+QColor = None
+QListWidgetItem = object  # type: ignore
 
 
 # ============================================================
-# I/O и файлы
+# I/O and files
 # ============================================================
 
 def safe_imread(path: str) -> Optional[np.ndarray]:
     """
-    Безопасное чтение изображения (cv2.imread возвращает None при неудаче).
+    Safe image loader (cv2.imread returns None on failure).
     """
     if not path or not os.path.exists(path):
         return None
@@ -34,7 +33,7 @@ def list_images(directory: str,
                 exts: Tuple[str, ...] = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"),
                 try_frame_sort: bool = True) -> List[str]:
     """
-    Список изображений в каталоге. При try_frame_sort пытается сортировать по номеру кадра вида frame_###.ext
+    Return a sorted list of image paths. When try_frame_sort=True, attempts to sort by frame index (frame_###.ext).
     """
     files = [os.path.join(directory, f)
              for f in os.listdir(directory)
@@ -51,8 +50,7 @@ def list_images(directory: str,
 
 def load_annotations(path: str) -> Dict:
     """
-    Загрузка аннотаций JSON. Возвращает dict (или пустой dict).
-    Ожидаемый формат верхнего уровня:
+    Load annotations JSON. Returns a dict (or empty dict) with the structure:
     {
       "keypoints": [...],
       "connections": [...],
@@ -70,7 +68,7 @@ def load_annotations(path: str) -> Dict:
 
 def save_annotations(path: str, data: Dict, indent: int = 4) -> bool:
     """
-    Сохранение аннотаций JSON. Возвращает True при успехе.
+    Save annotations JSON. Returns True on success.
     """
     try:
         with open(path, "w", encoding="utf-8") as f:
@@ -87,10 +85,10 @@ def extract_frames_from_video(video_path: str,
                               count: int = 10,
                               out_dir: Optional[str] = None) -> List[str]:
     """
-    Извлекает кадры из видео. Возвращает список путей сохранённых кадров.
-    mode="step": равномерный шаг по всему видео
-    mode="sequential": первые `count` кадров подряд
-    mode="all": все кадры
+    Extract frames from video and return saved frame paths.
+    mode="step": evenly spaced across the video
+    mode="sequential": first `count` frames in sequence
+    mode="all": every frame
     """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -127,12 +125,12 @@ def extract_frames_from_video(video_path: str,
 
 
 # ============================================================
-# Геометрия / преобразования
+# Geometry / transforms
 # ============================================================
 
 def xyxy_to_xywh(x1: float, y1: float, x2: float, y2: float) -> Tuple[float, float, float, float]:
     """
-    Преобразование [x1,y1,x2,y2] -> [x,y,w,h]
+    Convert [x1,y1,x2,y2] -> [x,y,w,h].
     """
     x = min(x1, x2)
     y = min(y1, y2)
@@ -143,8 +141,7 @@ def xyxy_to_xywh(x1: float, y1: float, x2: float, y2: float) -> Tuple[float, flo
 
 def xywh_to_xyxy(cx: float, cy: float, w: float, h: float) -> Tuple[float, float, float, float]:
     """
-    Преобразование центр-нормы -> xyxy в абсолютных пикселях (если данные абсолютные).
-    Здесь предполагаем, что cx,cy,w,h — уже в пикселях. (Используйте abs_to_norm/norm_to_abs при необходимости.)
+    Convert center format to xyxy in absolute pixels (assuming cx,cy,w,h already in pixels).
     """
     x1 = cx - w / 2.0
     y1 = cy - h / 2.0
@@ -155,21 +152,21 @@ def xywh_to_xyxy(cx: float, cy: float, w: float, h: float) -> Tuple[float, float
 
 def abs_to_norm(x: float, y: float, W: int, H: int) -> Tuple[float, float]:
     """
-    Абсолютные пиксели -> нормированные координаты (0..1)
+    Absolute pixels -> normalized coordinates (0..1).
     """
     return x / max(1, W), y / max(1, H)
 
 
 def norm_to_abs(xn: float, yn: float, W: int, H: int) -> Tuple[float, float]:
     """
-    Нормированные координаты (0..1) -> абсолютные пиксели
+    Normalized coordinates (0..1) -> absolute pixels.
     """
     return xn * W, yn * H
 
 
 def clamp_bbox_to_image(bbox_xyxy: List[float], W: int, H: int) -> List[int]:
     """
-    Ограничивает bbox границами изображения. Возвращает целочисленные [x1,y1,x2,y2].
+    Clamp bbox to image bounds, returning integer [x1,y1,x2,y2].
     """
     x1, y1, x2, y2 = bbox_xyxy
     x1 = int(max(0, min(W - 1, x1)))
@@ -181,7 +178,7 @@ def clamp_bbox_to_image(bbox_xyxy: List[float], W: int, H: int) -> List[int]:
 
 def bbox_from_points(points_dict: Dict[str, Tuple[float, float]]) -> Optional[List[int]]:
     """
-    Строит bbox [x1,y1,x2,y2] по словарю ключевых точек (если есть хотя бы одна точка).
+    Build a bbox [x1,y1,x2,y2] from a dict of keypoints (if any).
     """
     if not points_dict:
         return None
@@ -193,15 +190,14 @@ def bbox_from_points(points_dict: Dict[str, Tuple[float, float]]) -> Optional[Li
 
 
 # ============================================================
-# Интерполяция
+# Interpolation
 # ============================================================
 
 def interpolate_points_between_frames(points_start: Dict[str, Tuple[float, float]],
                                       points_end: Dict[str, Tuple[float, float]],
                                       t: float) -> Dict[str, Tuple[float, float]]:
     """
-    Линейная интерполяция точек, где t ∈ [0,1].
-    Берутся только общие точки, присутствующие в обоих словарях.
+    Linear interpolation of points for t ∈ [0,1], using only shared keys.
     """
     out: Dict[str, Tuple[float, float]] = {}
     for kp, p1 in points_start.items():
@@ -220,8 +216,8 @@ def interpolate_range(image_paths: List[str],
                       start_idx: int,
                       end_idx: int) -> None:
     """
-    Интерполирует промежуточные кадры между start_idx и end_idx (исключая сами границы).
-    Модифицирует `annotations` на месте.
+    Interpolate intermediate frames between start_idx and end_idx (excluding endpoints).
+    Mutates `annotations` in place.
     """
     p_start = image_paths[start_idx]
     p_end = image_paths[end_idx]
@@ -242,12 +238,12 @@ def interpolate_range(image_paths: List[str],
 
 
 # ============================================================
-# Навигация / сервис
+# Navigation / helpers
 # ============================================================
 
 def is_frame_annotated(annotations: Dict[str, Dict], path: str) -> bool:
     """
-    Считаем кадр размеченным, если есть хотя бы одна точка или bbox.
+    Treat a frame as annotated if it has at least one point or a bbox.
     """
     rec = annotations.get(path, {})
     return bool(rec.get("points")) or bool(rec.get("bbox"))
@@ -257,8 +253,8 @@ def find_next_matching_index(items: List[str],
                              start_index: int,
                              predicate: Callable[[str], bool]) -> Optional[int]:
     """
-    Циклический поиск следующего индекса, удовлетворяющего предикату.
-    Возвращает None, если ничего не найдено.
+    Cyclically search for the next index that satisfies predicate.
+    Returns None if nothing matches.
     """
     n = len(items)
     if n == 0:
@@ -273,7 +269,7 @@ def find_next_matching_index(items: List[str],
 
 def colorize_list_item(item, annotated: bool) -> None:
     """
-    Окраска элемента списка (если доступен QColor).
+    Colorize a list item (if QColor is available).
     """
     if QColor is None or item is None:
         return
@@ -281,12 +277,12 @@ def colorize_list_item(item, annotated: bool) -> None:
 
 
 # ============================================================
-# Работа с YOLO (Ultralytics)
+# YOLO helpers (Ultralytics)
 # ============================================================
 
 def yolo_infer(model, image: np.ndarray, conf: float = 0.5):
     """
-    Запускает модель Ultralytics YOLO и возвращает первый результат (res[0]).
+    Run an Ultralytics YOLO model and return the first result (res[0]).
     """
     if model is None or image is None:
         return None
@@ -296,8 +292,8 @@ def yolo_infer(model, image: np.ndarray, conf: float = 0.5):
 
 def yolo_best_bbox(res, img_shape: Tuple[int, int]) -> Optional[List[int]]:
     """
-    Извлекает самый уверенный bbox из результата YOLO.
-    Возвращает bbox в абсолютных пикселях [x1,y1,x2,y2] либо None.
+    Take the most confident bbox from YOLO output.
+    Returns absolute-pixel [x1,y1,x2,y2] or None.
     """
     if res is None or not hasattr(res, "boxes"):
         return None
@@ -321,8 +317,8 @@ def yolo_best_bbox(res, img_shape: Tuple[int, int]) -> Optional[List[int]]:
 
 def yolo_keypoints(res, keypoints_order: List[str]) -> Dict[str, Tuple[float, float]]:
     """
-    Извлекает keypoints из результата YOLO и сопоставляет их именам из keypoints_order.
-    Пропускает пары (0,0).
+    Extract keypoints from YOLO output and map them to keypoints_order.
+    Skips (0,0) pairs.
     """
     out: Dict[str, Tuple[float, float]] = {}
     if res is None or not hasattr(res, "keypoints") or not hasattr(res.keypoints, "xy"):
@@ -348,7 +344,7 @@ def annotate_points_and_bbox(model,
                              keypoints_order: List[str],
                              conf: float = 0.5) -> Dict[str, Optional[Dict]]:
     """
-    Комбайн: запускает YOLO, возвращает {"points": {...}, "bbox": [x1,y1,x2,y2] или None}
+    Convenience wrapper: runs YOLO and returns {"points": {...}, "bbox": [...] or None}.
     """
     res = yolo_infer(model, image, conf)
     if res is None:
@@ -359,7 +355,7 @@ def annotate_points_and_bbox(model,
 
 
 # ============================================================
-# Экспорт форматов
+# Export helpers
 # ============================================================
 
 def make_yolo_line(img_shape: Tuple[int, int],
@@ -368,9 +364,9 @@ def make_yolo_line(img_shape: Tuple[int, int],
                    points_dict: Dict[str, Tuple[float, float]],
                    cls_id: int = 0) -> Optional[str]:
     """
-    Формирует строку YOLO (keypoints): 'cls cx cy w h (x y v)*'
-    - bbox задаётся в абсолютных пикселях [x1,y1,x2,y2]; если None — вернёт None.
-    - keypoints нормируются в [0..1], visibility=1.0, а для отсутствующих — 0 0 0.
+    Build a YOLO keypoints line: 'cls cx cy w h (x y v)*'.
+    - bbox is absolute pixels [x1,y1,x2,y2]; if None, returns None.
+    - keypoints are normalized to [0..1], visibility=1.0, missing ones are 0 0 0.
     """
     H, W = img_shape
     if bbox_xyxy is None:
@@ -394,7 +390,7 @@ def make_yolo_line(img_shape: Tuple[int, int],
 
 def train_val_split(paths: List[str], ratio: float = 0.8, seed: Optional[int] = None) -> Tuple[List[str], List[str]]:
     """
-    Делит пути на train/val по вероятности ratio.
+    Split paths into train/val using probability `ratio`.
     """
     if seed is not None:
         random.seed(seed)
@@ -404,106 +400,44 @@ def train_val_split(paths: List[str], ratio: float = 0.8, seed: Optional[int] = 
     return train, val
 
 
-def build_coco_json(image_paths: List[str],
-                    annotations: Dict[str, Dict],
-                    keypoints: List[str],
-                    connections: List[Tuple[str, str]]) -> Dict:
+def write_yolo_dataset_yaml(out_dir: str,
+                            keypoints: List[str],
+                            connections: List[Tuple[str, str]],
+                            class_name: str = "object") -> str:
     """
-    Формирует COCO JSON-объект (images, annotations, categories) для позы (2D keypoints).
-    """
-    images = []
-    ann_list = []
-    categories = [{
-        "id": 1,
-        "name": "object",
-        "supercategory": "object",
-        "keypoints": keypoints,
-        "skeleton": [[keypoints.index(a) + 1, keypoints.index(b) + 1] for a, b in connections]
-    }]
-
-    ann_id = 1
-    for img_id, path in enumerate(image_paths, start=1):
-        img = safe_imread(path)
-        if img is None:
-            continue
-        H, W = img.shape[:2]
-        images.append({"id": img_id, "file_name": os.path.basename(path), "width": W, "height": H})
-
-        rec = annotations.get(path, {})
-        pts = rec.get("points", {}) or {}
-        bbox = rec.get("bbox")
-
-        # keypoints flat [x,y,v] * K
-        kp_flat = []
-        num_kp = 0
-        for kp in keypoints:
-            if kp in pts and pts[kp] is not None:
-                x, y = map(float, pts[kp])
-                kp_flat += [x, y, 2]  # v=2 размечен/видим
-                num_kp += 1
-            else:
-                kp_flat += [0.0, 0.0, 0]
-
-        if bbox is None:
-            bbox = bbox_from_points(pts)
-        if bbox is not None:
-            x1, y1, x2, y2 = bbox
-            x, y, w, h = xyxy_to_xywh(x1, y1, x2, y2)
-        else:
-            x, y, w, h = 0.0, 0.0, 0.0, 0.0
-
-        if num_kp > 0 or (w * h) > 0:
-            ann_list.append({
-                "id": ann_id,
-                "image_id": img_id,
-                "category_id": 1,
-                "iscrowd": 0,
-                "keypoints": kp_flat,
-                "num_keypoints": num_kp,
-                "bbox": [x, y, w, h],
-                "area": w * h
-            })
-            ann_id += 1
-
-    return {"images": images, "annotations": ann_list, "categories": categories}
-
-
-def write_openpose_jsons(image_paths: List[str],
-                         annotations: Dict[str, Dict],
-                         keypoints: List[str],
-                         out_dir: str) -> List[str]:
-    """
-    Записывает OpenPose style JSON для каждого изображения.
-    Возвращает список путей сохранённых файлов.
+    Create an Ultralytics YOLO pose YAML config and return its path.
     """
     os.makedirs(out_dir, exist_ok=True)
-    saved = []
-    for path in image_paths:
-        rec = annotations.get(path, {})
-        pts = rec.get("points", {}) or {}
-        flat = []
-        for kp in keypoints:
-            if kp in pts and pts[kp] is not None:
-                x, y = map(float, pts[kp])
-                flat += [x, y, 1.0]
-            else:
-                flat += [0.0, 0.0, 0.0]
-        data = {"version": 1.3, "people": [{"person_id": [-1], "pose_keypoints_2d": flat}]}
-        fname = os.path.splitext(os.path.basename(path))[0] + "_keypoints.json"
-        out_path = os.path.join(out_dir, fname)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        saved.append(out_path)
-    return saved
+    kp_to_idx = {name: idx for idx, name in enumerate(keypoints)}
+    skeleton = []
+    for a, b in connections:
+        if a in kp_to_idx and b in kp_to_idx:
+            skeleton.append([kp_to_idx[a], kp_to_idx[b]])
+
+    config = {
+        "path": os.path.abspath(out_dir),
+        "train": "images/train",
+        "val": "images/val",
+        "names": {0: class_name},
+        "kpt_shape": [len(keypoints), 3],
+        "keypoints": keypoints,
+    }
+    if skeleton:
+        config["skeleton"] = skeleton
+
+    yaml_path = os.path.join(out_dir, "dataset.yaml")
+    with open(yaml_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
+    return yaml_path
 
 
 # ============================================================
-# Валидация / QC
+# Validation / QC
 # ============================================================
 
 def validate_skeleton(keypoints: List[str], connections: List[Tuple[str, str]]) -> bool:
     """
-    Проверяет, что все связи указывают на существующие keypoints.
+    Ensure every connection references existing keypoints.
     """
     ks = set(keypoints)
     for a, b in connections:
@@ -514,8 +448,8 @@ def validate_skeleton(keypoints: List[str], connections: List[Tuple[str, str]]) 
 
 def validate_annotation_record(record: Dict, W: int, H: int) -> bool:
     """
-    Простая проверка, что точки и bbox лежат в пределах изображения.
-    Не падает на None/пустых значениях.
+    Simple bounds check that keypoints and bbox stay inside the image.
+    Ignores None/empty values.
     """
     if not isinstance(record, dict):
         return False
@@ -539,8 +473,7 @@ def validate_annotation_record(record: Dict, W: int, H: int) -> bool:
 
 def ensure_bbox_present(record: Dict) -> None:
     """
-    Если в записи нет bbox, но есть точки — добавляет bbox по точкам.
-    Модифицирует record на месте.
+    If a record lacks bbox but has points, derive bbox from them (mutates record).
     """
     if not isinstance(record, dict):
         return
@@ -553,19 +486,19 @@ def ensure_bbox_present(record: Dict) -> None:
 
 
 # ============================================================
-# Снапшоты (для Undo/Redo)
+# Snapshots (Undo/Redo)
 # ============================================================
 
 def snapshot_annotation(annotations: Dict[str, Dict], path: str) -> Tuple[str, Dict]:
     """
-    Возвращает глубокую копию записи аннотаций для path.
+    Return a deep copy of annotation record for path.
     """
     rec = annotations.get(path, {"points": {}, "bbox": None})
-    return path, json.loads(json.dumps(rec))  # глуб. копия через JSON
+    return path, json.loads(json.dumps(rec))  # deep copy via JSON
 
 
 def restore_snapshot(annotations: Dict[str, Dict], path: str, snapshot: Dict) -> None:
     """
-    Восстанавливает снапшот записи по path.
+    Restore a snapshot for the given path.
     """
     annotations[path] = json.loads(json.dumps(snapshot))

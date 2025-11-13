@@ -72,6 +72,8 @@ Typical workflow:
 6. Save annotations: **File → Save Annotations As…** (JSON).
 7. Export to **YOLO**: **File → Save in YOLO format** (splits into `train/val`).
 
+> Tip: hold `Alt` to draw, move, or resize the bounding box; press `Alt+W` to remove it.
+
 YOLO export structure:
 ```
 dataset/
@@ -82,6 +84,7 @@ dataset/
     ├── train/
     └── val/
 ```
+The tool also writes a ready-to-use `dataset.yaml` inside the export folder (Ultralytics format).
 ---
 
 ## 🧩 Example Skeleton JSON
