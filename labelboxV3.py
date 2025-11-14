@@ -24,11 +24,11 @@ from style import MATERIAL_STYLE
 
 from utils import (
     safe_imread, list_images, load_annotations, save_annotations,
-    extract_frames_from_video, interpolate_range,bbox_from_points,
+    extract_frames_from_video, interpolate_range, bbox_from_points,
     is_frame_annotated, find_next_matching_index, colorize_list_item,
     yolo_infer, yolo_best_bbox, annotate_points_and_bbox,
     make_yolo_line, train_val_split, write_yolo_dataset_yaml,
-    snapshot_annotation, restore_snapshot, ensure_bbox_present
+    snapshot_annotation, restore_snapshot
 )
 
 
@@ -558,6 +558,7 @@ class ImageGraphicsView(QGraphicsView):
         self.points = {kp: None for kp in self.keypoints}
         self.selected_keypoint = None
         self.update_view()
+        self.reset_keypoint_sequence()
 
     def set_selected_keypoint(self, kp: str):
         self.selected_keypoint = kp
@@ -656,6 +657,18 @@ class ImageGraphicsView(QGraphicsView):
                     return p_name
         return None
 
+    def reset_keypoint_sequence(self):
+        """
+        Select the first keypoint that does not have coordinates yet.
+        """
+        self.hovered_point_name = None
+        self.dragging_point_name = None
+        if not self.keypoints:
+            self.selected_keypoint = None
+            return None
+        self.selected_keypoint = self._get_next_empty_point()
+        return self.selected_keypoint
+
     def delete_point(self):
         if self.hovered_point_name is not None:
             self.points[self.hovered_point_name] = None
@@ -703,7 +716,7 @@ class AnnotationMainWindow(QMainWindow):
         left_layout = QVBoxLayout(left_widget)
 
         # ── Model and auto-annotation controls
-        controls_group = QGroupBox("Model & auto-annotation")
+        controls_group = QGroupBox()
         cg = QGridLayout(controls_group)
         cg.setContentsMargins(8, 8, 8, 8)
         cg.setHorizontalSpacing(8)
@@ -796,15 +809,28 @@ class AnnotationMainWindow(QMainWindow):
 
         left_layout.addWidget(nav_group)
 
-        dock_left = QDockWidget("Frames")
+        dock_left = QDockWidget()
         dock_left.setWidget(left_widget)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock_left)
 
         # Right dock
         right_container = QWidget()
+        right_container.setObjectName("right_panel_container")
+        right_container.setStyleSheet("""
+        QWidget#bbox_panel, QWidget#points_panel {
+            border: 1px solid #BDBDBD;
+            border-radius: 4px;
+            background-color: #f7f7f7;
+        }
+        QLabel#bbox_title, QLabel#points_title {
+            font-weight: 600;
+            color: #424242;
+            padding-bottom: 4px;
+        }
+        """)
         right_v = QVBoxLayout(right_container)
         right_v.setContentsMargins(6, 6, 6, 6)
-        right_v.setSpacing(0)
+        right_v.setSpacing(8)
 
         # BBox
         self.bbox_table = QTableWidget(1, 5)
@@ -823,6 +849,7 @@ class AnnotationMainWindow(QMainWindow):
         self.bbox_table.setColumnWidth(0, 60)
         for c in range(1, 5):
             self.bbox_table.setColumnWidth(c, 56)
+        self.bbox_table.verticalHeader().setDefaultSectionSize(30)
 
         it0 = QTableWidgetItem("bbox")
         it0.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -832,32 +859,16 @@ class AnnotationMainWindow(QMainWindow):
             it.setFlags(it.flags() & ~Qt.ItemIsEditable)
             it.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             self.bbox_table.setItem(0, c, it)
+        bbox_panel = QWidget()
+        bbox_panel.setObjectName("bbox_panel")
+        bbox_layout = QVBoxLayout(bbox_panel)
+        bbox_layout.setContentsMargins(8, 8, 8, 8)
+        bbox_layout.setSpacing(4)
 
-        right_v.addWidget(self.bbox_table)
-        clear_bbox_btn = QPushButton("Clear BBox")
-        clear_bbox_btn.setFixedHeight(26)
-        clear_bbox_btn.clicked.connect(self.clear_current_bbox)
-        right_v.addWidget(clear_bbox_btn)
+        bbox_layout.addWidget(self.bbox_table)
+        right_v.addWidget(bbox_panel)
         self._fit_bbox_table_height()
 
-        # Thin separator
-        sep = QFrame()
-        sep.setObjectName("bbox_points_separator")
-        sep.setFrameShape(QFrame.HLine)
-        sep.setFrameShadow(QFrame.Plain)
-        sep.setLineWidth(1)
-        sep.setMidLineWidth(0)
-        sep.setStyleSheet("""
-        #bbox_points_separator {
-            background-color: #3A3A3A;
-            min-height: 1px; max-height: 1px;
-            margin-top: 4px; margin-bottom: 4px;
-            border: none;
-        }
-        """)
-        right_v.addWidget(sep)
-
-        # Points table
         self.points_table = QTableWidget()
         self.points_table.setColumnCount(3)
         self.points_table.setHorizontalHeaderLabels(["Keypoint", "X", "Y"])
@@ -872,12 +883,18 @@ class AnnotationMainWindow(QMainWindow):
         hp.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         hp.setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
-        # Enable selecting a keypoint by clicking a row
         self.points_table.cellClicked.connect(self.select_keypoint_from_table)
 
-        right_v.addWidget(self.points_table, 1)
+        points_panel = QWidget()
+        points_panel.setObjectName("points_panel")
+        points_layout = QVBoxLayout(points_panel)
+        points_layout.setContentsMargins(8, 8, 8, 8)
+        points_layout.setSpacing(4)
 
-        dock_right = QDockWidget("Details")
+        points_layout.addWidget(self.points_table)
+        right_v.addWidget(points_panel, 1)
+
+        dock_right = QDockWidget()
         dock_right.setWidget(right_container)
         dock_right.setMinimumWidth(280)
         self.addDockWidget(Qt.RightDockWidgetArea, dock_right)
@@ -891,7 +908,7 @@ class AnnotationMainWindow(QMainWindow):
 
         # ── Menu
         menu_bar = QMenuBar()
-        menu_bar.setStyleSheet(MATERIAL_STYLE)
+        # menu_bar.setStyleSheet(MATERIAL_STYLE)
         file_menu = menu_bar.addMenu("File")
 
         setup_skel_act = QAction("Configure skeleton", self)
@@ -957,9 +974,16 @@ class AnnotationMainWindow(QMainWindow):
 
     def _fit_bbox_table_height(self):
         h_header = self.bbox_table.horizontalHeader().height()
-        h_row    = self.bbox_table.sizeHintForRow(0)
-        h_frame  = self.bbox_table.frameWidth() * 2
-        self.bbox_table.setFixedHeight(h_header + h_row + h_frame + 2)
+        rows_h = 0
+        for r in range(self.bbox_table.rowCount()):
+            rows_h += self.bbox_table.rowHeight(r)
+
+        if rows_h == 0:
+            rows_h = self.bbox_table.verticalHeader().defaultSectionSize()
+
+        h_frame = self.bbox_table.frameWidth() * 2
+        self.bbox_table.setFixedHeight(h_header + rows_h + h_frame + 8)
+
 
     def on_unload_model(self):
         self.model = None
@@ -1131,6 +1155,7 @@ class AnnotationMainWindow(QMainWindow):
             for kp in self.keypoints:
                 coords = ann.get(kp, None)
                 self.image_view.points[kp] = coords
+        self.image_view.reset_keypoint_sequence()
 
         # BBox
         bbox = self.annotations.get(path, {}).get("bbox", None)
@@ -1302,8 +1327,6 @@ class AnnotationMainWindow(QMainWindow):
             self._save_annotations()
 
     def _save_annotations_dict(self) -> dict:
-        for path, rec in self.annotations.items():
-            ensure_bbox_present(rec)
         return {
             "keypoints": self.keypoints,
             "connections": self.connections,
@@ -1483,7 +1506,7 @@ class AnnotationMainWindow(QMainWindow):
 # ==============================================================================
 def main():
     app = QApplication(sys.argv)
-    app.setStyleSheet(MATERIAL_STYLE)
+    # app.setStyleSheet(MATERIAL_STYLE)
 
     dlg = InitialLoadDialog()
     if dlg.exec() == QDialog.Accepted:

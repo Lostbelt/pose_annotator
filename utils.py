@@ -11,8 +11,10 @@ import yaml
 
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QListWidgetItem
+
+
 QColor = None
-QListWidgetItem = object  # type: ignore
+QListWidgetItem = object
 
 
 # ============================================================
@@ -78,8 +80,6 @@ def save_annotations(path: str, data: Dict, indent: int = 4) -> bool:
         return False
 
 
-
-
 def extract_frames_from_video(video_path: str,
                               mode: str = "step",  # "step" | "sequential" | "all"
                               count: int = 10,
@@ -128,16 +128,6 @@ def extract_frames_from_video(video_path: str,
 # Geometry / transforms
 # ============================================================
 
-def xyxy_to_xywh(x1: float, y1: float, x2: float, y2: float) -> Tuple[float, float, float, float]:
-    """
-    Convert [x1,y1,x2,y2] -> [x,y,w,h].
-    """
-    x = min(x1, x2)
-    y = min(y1, y2)
-    w = abs(x2 - x1)
-    h = abs(y2 - y1)
-    return x, y, w, h
-
 
 def xywh_to_xyxy(cx: float, cy: float, w: float, h: float) -> Tuple[float, float, float, float]:
     """
@@ -156,12 +146,6 @@ def abs_to_norm(x: float, y: float, W: int, H: int) -> Tuple[float, float]:
     """
     return x / max(1, W), y / max(1, H)
 
-
-def norm_to_abs(xn: float, yn: float, W: int, H: int) -> Tuple[float, float]:
-    """
-    Normalized coordinates (0..1) -> absolute pixels.
-    """
-    return xn * W, yn * H
 
 
 def clamp_bbox_to_image(bbox_xyxy: List[float], W: int, H: int) -> List[int]:
@@ -273,7 +257,12 @@ def colorize_list_item(item, annotated: bool) -> None:
     """
     if QColor is None or item is None:
         return
-    item.setForeground(QColor(0, 200, 120) if annotated else QColor(200, 200, 200))
+    if annotated:
+        item.setForeground(QColor("#1b5e20"))
+        item.setBackground(QColor("#c8e6c9"))
+    else:
+        item.setForeground(QColor("#616161"))
+        item.setBackground(QColor("#f5f5f5"))
 
 
 # ============================================================
@@ -414,61 +403,39 @@ def write_yolo_dataset_yaml(out_dir: str,
         if a in kp_to_idx and b in kp_to_idx:
             skeleton.append([kp_to_idx[a], kp_to_idx[b]])
 
-    config = {
-        "path": os.path.abspath(out_dir),
-        "train": "images/train",
-        "val": "images/val",
-        "names": {0: class_name},
-        "kpt_shape": [len(keypoints), 3],
-        "keypoints": keypoints,
-    }
-    if skeleton:
-        config["skeleton"] = skeleton
-
     yaml_path = os.path.join(out_dir, "dataset.yaml")
+    kp_text = yaml.safe_dump(
+        keypoints,
+        default_flow_style=True,
+        allow_unicode=True,
+        sort_keys=False
+    ).strip()
+    skeleton_text = None
+    if skeleton:
+        skeleton_text = yaml.safe_dump(
+            skeleton,
+            default_flow_style=True,
+            allow_unicode=True,
+            sort_keys=False
+        ).strip()
+
     with open(yaml_path, "w", encoding="utf-8") as f:
-        yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
+        f.write(f"path: {os.path.abspath(out_dir)}\n")
+        f.write("train: images/train\n")
+        f.write("val: images/val\n\n")
+        f.write("# Keypoints\n")
+        f.write(f"kpt_shape: [{len(keypoints)}, 3]  # number of keypoints, number of dims (2 for x,y or 3 for x,y,visible)\n")
+        f.write(f"keypoints: {kp_text}\n\n")
+        if skeleton_text:
+            f.write(f"skeleton: {skeleton_text}\n\n")
+        f.write("# Classes\n")
+        f.write(f"names: ['{class_name}']\n")
     return yaml_path
 
 
 # ============================================================
 # Validation / QC
 # ============================================================
-
-def validate_skeleton(keypoints: List[str], connections: List[Tuple[str, str]]) -> bool:
-    """
-    Ensure every connection references existing keypoints.
-    """
-    ks = set(keypoints)
-    for a, b in connections:
-        if a not in ks or b not in ks:
-            return False
-    return True
-
-
-def validate_annotation_record(record: Dict, W: int, H: int) -> bool:
-    """
-    Simple bounds check that keypoints and bbox stay inside the image.
-    Ignores None/empty values.
-    """
-    if not isinstance(record, dict):
-        return False
-
-    pts = record.get("points", {})
-    if isinstance(pts, dict):
-        for name, v in pts.items():
-            if v is None:
-                continue
-            x, y = v
-            if not (0 <= float(x) < W and 0 <= float(y) < H):
-                return False
-
-    bbox = record.get("bbox")
-    if bbox:
-        x1, y1, x2, y2 = bbox
-        if not (0 <= x1 < W and 0 <= x2 < W and 0 <= y1 < H and 0 <= y2 < H):
-            return False
-    return True
 
 
 def ensure_bbox_present(record: Dict) -> None:
