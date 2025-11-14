@@ -22,35 +22,16 @@ from PySide6.QtCore import Qt, QRectF, Signal, QSize, QTimer, QPointF
 
 from style import MATERIAL_STYLE
 
-# ─── utils ─────────────────────────────────────────────────────────────────────
 from utils import (
-    # IO / paths
     safe_imread, list_images, load_annotations, save_annotations,
-    extract_frames_from_video,
-
-    # Navigation / service
+    extract_frames_from_video, interpolate_range,bbox_from_points,
     is_frame_annotated, find_next_matching_index, colorize_list_item,
-
-    # Interpolation
-    interpolate_range,
-
-    # Geometry
-    bbox_from_points,
-
-    # YOLO helpers
     yolo_infer, yolo_best_bbox, annotate_points_and_bbox,
-
-    # Export
     make_yolo_line, train_val_split, write_yolo_dataset_yaml,
-
-    # Snapshots / QC
     snapshot_annotation, restore_snapshot, ensure_bbox_present
 )
 
 
-# ==============================================================================
-# Dialog: load data
-# ==============================================================================
 class InitialLoadDialog(QDialog):
     """
     Dialog that allows choosing an image folder or a video file.
@@ -99,7 +80,6 @@ class InitialLoadDialog(QDialog):
             QMessageBox.critical(self, "Error", "Video file has no frames.")
             return
 
-        # ── Extraction options
         opt_dialog = QDialog(self)
         opt_dialog.setWindowTitle("Frame extraction settings")
         dlayout = QVBoxLayout(opt_dialog)
@@ -138,7 +118,6 @@ class InitialLoadDialog(QDialog):
         if opt_dialog.exec() != QDialog.Accepted:
             return
 
-        # ── Run extraction utility
         base_name = os.path.splitext(os.path.basename(video_path))[0]
         frames_dir = os.path.join(os.getcwd(), f"{base_name}_frames")
         os.makedirs(frames_dir, exist_ok=True)
@@ -155,10 +134,6 @@ class InitialLoadDialog(QDialog):
         self.result_path = frames_dir
         self.accept()
 
-
-# ==============================================================================
-# Dialog: skeleton configuration
-# ==============================================================================
 class SkeletonSetupDialog(QDialog):
     """
     Dialog for configuring skeleton keypoints and connections.
@@ -244,10 +219,6 @@ class SkeletonSetupDialog(QDialog):
         self.connections = connections
         self.accept()
 
-
-# ==============================================================================
-# Interactive bbox (drag + resize) with on_begin/on_end hooks
-# ==============================================================================
 class ResizableRectItem(QGraphicsRectItem):
     HANDLE_MARGIN = 6
     def __init__(self, x: float, y: float, w: float, h: float,
@@ -363,9 +334,6 @@ class ResizableRectItem(QGraphicsRectItem):
         self.setPos(QPointF(x, y))
 
 
-# ==============================================================================
-# Image widget (points + bbox)
-# ==============================================================================
 class ImageGraphicsView(QGraphicsView):
     """
     Widget that renders the image, keypoints, and bbox overlays.
@@ -455,7 +423,6 @@ class ImageGraphicsView(QGraphicsView):
                 if bbox_mode:
                     super().mousePressEvent(event)
                     return
-                # fall through to point handling when Alt is not held
                 item = None
 
             pos = self.mapToScene(event.position().toPoint())
@@ -487,7 +454,6 @@ class ImageGraphicsView(QGraphicsView):
             pos = self.mapToScene(event.position().toPoint())
             x1, y1 = self._bbox_start
             x2, y2 = pos.x(), pos.y()
-            # temporary rectangle preview
             if self._bbox_item is None:
                 self._bbox_item = ResizableRectItem(
                     min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1),
@@ -579,7 +545,6 @@ class ImageGraphicsView(QGraphicsView):
                 )
                 self.scene().addItem(self._bbox_item)
             else:
-                # update geometry if the item already exists
                 self._bbox_item.set_rect_and_pos(x, y, w, h)
             self._bbox_item.show()
         else:
@@ -606,11 +571,10 @@ class ImageGraphicsView(QGraphicsView):
         self._show_image(self.image)
 
     def _show_image(self, image):
-        # Scene fully resets — drop the bbox item reference.
         self.scene().clear()
         self._point_items.clear()
         self._conn_items.clear()
-        self._bbox_item = None  # avoid dangling reference to deleted C++ object
+        self._bbox_item = None
 
         height, width, ch = image.shape
         bytesPerLine = ch * width
@@ -624,7 +588,6 @@ class ImageGraphicsView(QGraphicsView):
     def _draw_primitives(self):
         if self.image is None:
             return
-        # remove previous overlays (points/lines)
         for it in self._point_items:
             self.scene().removeItem(it)
         for it in self._conn_items:
@@ -632,7 +595,6 @@ class ImageGraphicsView(QGraphicsView):
         self._point_items.clear()
         self._conn_items.clear()
 
-        # connections
         pen_conn = QPen(QColor(0, 255, 0), 2)
         hl_conn  = QPen(QColor(0, 200, 255), 3)
 
@@ -644,7 +606,6 @@ class ImageGraphicsView(QGraphicsView):
                 line = self.scene().addLine(x1, y1, x2, y2, pen)
                 self._conn_items.append(line)
 
-        # points
         base_pen = QPen(QColor(255, 0, 0), 3)
         sel_pen  = QPen(QColor(0, 200, 255), 3)
         hov_pen  = QPen(QColor(255, 200, 0), 3)
@@ -702,10 +663,6 @@ class ImageGraphicsView(QGraphicsView):
             self.dragging_point_name = None
             self.update_view()
 
-
-# ==============================================================================
-# Main window
-# ==============================================================================
 class AnnotationMainWindow(QMainWindow):
     """
     Main annotation window.
@@ -726,12 +683,10 @@ class AnnotationMainWindow(QMainWindow):
 
         self.annotation_file_path: Optional[str] = None
 
-        # YOLO model
         self.model = None
         self.device = 'cpu'
         self.auto_annotate_on_select = False
 
-        # Image widget
         self.image_view = ImageGraphicsView()
         self.image_view.pointPlaced.connect(self.point_placed)
         self.image_view.pointMoved.connect(self.point_moved)
@@ -778,7 +733,6 @@ class AnnotationMainWindow(QMainWindow):
         cg.addWidget(self.chk_auto_annot,   1, 0)
         cg.addWidget(self.btn_auto_annot_all, 1, 1)
 
-        # ── Inference controls (device/conf + mode label)
         infer_group = QGroupBox("Inference")
         ig = QGridLayout(infer_group)
         ig.setContentsMargins(8, 8, 8, 8)
@@ -846,7 +800,7 @@ class AnnotationMainWindow(QMainWindow):
         dock_left.setWidget(left_widget)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock_left)
 
-        # ── Right dock: compact tables
+        # Right dock
         right_container = QWidget()
         right_v = QVBoxLayout(right_container)
         right_v.setContentsMargins(6, 6, 6, 6)
@@ -964,7 +918,7 @@ class AnnotationMainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Z"), self, activated=self.undo)
         QShortcut(QKeySequence("Ctrl+Y"), self, activated=self.redo)
 
-        # ── Undo/Redo stacks
+
         self.undo_stack: List[Tuple[str, dict]] = []
         self.redo_stack: List[Tuple[str, dict]] = []
 
