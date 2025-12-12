@@ -304,7 +304,9 @@ def yolo_best_bbox(res, img_shape: Tuple[int, int]) -> Optional[List[int]]:
     return clamp_bbox_to_image([x1, y1, x2, y2], W, H)
 
 
-def yolo_keypoints(res, keypoints_order: List[str]) -> Dict[str, Tuple[float, float]]:
+def yolo_keypoints(res,
+                   keypoints_order: List[str],
+                   keypoint_conf: Optional[float] = None) -> Dict[str, Tuple[float, float]]:
     """
     Extract keypoints from YOLO output and map them to keypoints_order.
     Skips (0,0) pairs.
@@ -314,16 +316,42 @@ def yolo_keypoints(res, keypoints_order: List[str]) -> Dict[str, Tuple[float, fl
         return out
     try:
         raw = res.keypoints.xy.to('cpu').numpy()
+        confs = res.keypoints.conf.to('cpu').numpy() if hasattr(res.keypoints, "conf") else None
     except Exception:
         return out
     if raw.ndim == 3:  # (N, K, 2)
+        if raw.shape[0] == 0:
+            return out
         raw = raw[0]
+        if confs is not None:
+            if confs.ndim == 3 and confs.shape[0] > 0:
+                confs = confs[0]
+            elif confs.ndim == 2 and confs.shape[0] > 0:
+                confs = confs[0]
+    elif raw.ndim != 2:
+        return out
+    if confs is not None:
+        if confs.ndim == 3 and confs.shape[0] > 0:
+            confs = confs[0]
+        if confs.ndim == 2 and raw.shape[0] != confs.shape[0]:
+            # Reduce to first entry if detections axis present
+            confs = confs[0] if confs.shape[0] > 0 else None
     for i, name in enumerate(keypoints_order):
         if i >= raw.shape[0]:
             break
         x, y = raw[i][:2]
         if float(x) == 0.0 and float(y) == 0.0:
             continue
+        if confs is not None:
+            if confs.ndim == 2:
+                if i < confs.shape[0]:
+                    kp_conf = confs[i, 0] if confs.shape[1] > 0 else None
+                else:
+                    kp_conf = None
+            else:
+                kp_conf = confs[i] if i < confs.shape[0] else None
+            if keypoint_conf is not None and kp_conf is not None and float(kp_conf) < keypoint_conf:
+                continue
         out[name] = (float(x), float(y))
     return out
 
@@ -331,14 +359,15 @@ def yolo_keypoints(res, keypoints_order: List[str]) -> Dict[str, Tuple[float, fl
 def annotate_points_and_bbox(model,
                              image: np.ndarray,
                              keypoints_order: List[str],
-                             conf: float = 0.5) -> Dict[str, Optional[Dict]]:
+                             det_conf: float = 0.5,
+                             keypoint_conf: Optional[float] = None) -> Dict[str, Optional[Dict]]:
     """
     Convenience wrapper: runs YOLO and returns {"points": {...}, "bbox": [...] or None}.
     """
-    res = yolo_infer(model, image, conf)
+    res = yolo_infer(model, image, det_conf)
     if res is None:
         return {"points": {}, "bbox": None}
-    pts = yolo_keypoints(res, keypoints_order)
+    pts = yolo_keypoints(res, keypoints_order, keypoint_conf=keypoint_conf)
     bbox = yolo_best_bbox(res, image.shape[:2])
     return {"points": pts, "bbox": bbox}
 

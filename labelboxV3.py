@@ -761,18 +761,28 @@ class AnnotationMainWindow(QMainWindow):
         self.device_combo.setToolTip("Select device (CPU/CUDA)")
         self.device_combo.setFixedWidth(100)
 
-        conf_lbl = QLabel("Conf:")
-        self.conf_spin = QDoubleSpinBox()
-        self.conf_spin.setRange(0.0, 1.0)
-        self.conf_spin.setSingleStep(0.05)
-        self.conf_spin.setValue(0.5)
-        self.conf_spin.setToolTip("Confidence threshold")
-        self.conf_spin.setFixedWidth(80)
+        det_conf_lbl = QLabel("Det conf:")
+        self.det_conf_spin = QDoubleSpinBox()
+        self.det_conf_spin.setRange(0.0, 1.0)
+        self.det_conf_spin.setSingleStep(0.05)
+        self.det_conf_spin.setValue(0.5)
+        self.det_conf_spin.setToolTip("Confidence threshold for detections")
+        self.det_conf_spin.setFixedWidth(80)
+
+        kp_conf_lbl = QLabel("KP conf:")
+        self.kp_conf_spin = QDoubleSpinBox()
+        self.kp_conf_spin.setRange(0.0, 1.0)
+        self.kp_conf_spin.setSingleStep(0.05)
+        self.kp_conf_spin.setValue(0.5)
+        self.kp_conf_spin.setToolTip("Confidence threshold for keypoints")
+        self.kp_conf_spin.setFixedWidth(80)
 
         ig.addWidget(dev_lbl,           0, 0)
         ig.addWidget(self.device_combo, 0, 1)
-        ig.addWidget(conf_lbl,          0, 2)
-        ig.addWidget(self.conf_spin,    0, 3)
+        ig.addWidget(det_conf_lbl,      0, 2)
+        ig.addWidget(self.det_conf_spin,0, 3)
+        ig.addWidget(kp_conf_lbl,       1, 0)
+        ig.addWidget(self.kp_conf_spin, 1, 1)
         ig.setColumnStretch(4, 1)
 
         # ── Frame list + navigation
@@ -992,8 +1002,15 @@ class AnnotationMainWindow(QMainWindow):
     def is_model_loaded(self):
         return self.model is not None
 
+    def get_detection_conf_threshold(self) -> float:
+        return self.det_conf_spin.value()
+
     def get_conf_threshold(self) -> float:
-        return self.conf_spin.value()
+        # Backward compatibility for existing calls
+        return self.get_detection_conf_threshold()
+
+    def get_keypoint_conf_threshold(self) -> float:
+        return self.kp_conf_spin.value()
 
     # ───────────────────── Annotations / Undo / Redo ─────────────────────
     def _push_undo(self):
@@ -1060,7 +1077,8 @@ class AnnotationMainWindow(QMainWindow):
         progress.setValue(0)
 
         canceled = False
-        conf_val = self.get_conf_threshold()
+        det_conf = self.get_detection_conf_threshold()
+        kp_conf = self.get_keypoint_conf_threshold()
 
         for i, path in enumerate(self.image_paths):
             progress.setValue(i)
@@ -1073,7 +1091,13 @@ class AnnotationMainWindow(QMainWindow):
             if img is None:
                 continue
 
-            combo = annotate_points_and_bbox(self.model, img, self.keypoints, conf=conf_val)
+            combo = annotate_points_and_bbox(
+                self.model,
+                img,
+                self.keypoints,
+                det_conf=det_conf,
+                keypoint_conf=kp_conf
+            )
             if combo["points"]:
                 for p_name, coords in combo["points"].items():
                     self.set_annotation(path, p_name, (int(coords[0]), int(coords[1])))
@@ -1136,8 +1160,15 @@ class AnnotationMainWindow(QMainWindow):
             if (not ann_points or not has_bbox):
                 img = safe_imread(path)
                 if img is not None:
-                    conf_val = self.get_conf_threshold()
-                    combo = annotate_points_and_bbox(self.model, img, self.keypoints, conf=conf_val)
+                    det_conf = self.get_detection_conf_threshold()
+                    kp_conf = self.get_keypoint_conf_threshold()
+                    combo = annotate_points_and_bbox(
+                        self.model,
+                        img,
+                        self.keypoints,
+                        det_conf=det_conf,
+                        keypoint_conf=kp_conf
+                    )
                     if combo["points"]:
                         for p_name, coords in combo["points"].items():
                             self.set_annotation(path, p_name, (int(coords[0]), int(coords[1])))
@@ -1432,7 +1463,7 @@ class AnnotationMainWindow(QMainWindow):
         os.makedirs(labels_val, exist_ok=True)
 
         train_set, val_set = train_val_split(self.image_paths, ratio=train_ratio)
-        conf_val = self.get_conf_threshold()
+        det_conf = self.get_detection_conf_threshold()
 
         def prepare_line(path: str) -> Optional[str]:
             img = safe_imread(path)
@@ -1442,7 +1473,7 @@ class AnnotationMainWindow(QMainWindow):
             saved_bbox = self.annotations.get(path, {}).get("bbox")
             bbox_xyxy = saved_bbox
             if bbox_xyxy is None and self.is_model_loaded():
-                res = yolo_infer(self.model, img, conf_val)
+                res = yolo_infer(self.model, img, det_conf)
                 bbox_xyxy = yolo_best_bbox(res, (H, W))
             if bbox_xyxy is None:
                 return None
