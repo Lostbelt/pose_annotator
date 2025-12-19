@@ -9,10 +9,15 @@ Supports custom skeletons, **auto-annotation** via Ultralytics, and export to th
 
 ## Installation
 
-Create an environment using yml file:
+
+Create an environment:
 ```bash
-conda env create -f environment.yml
-conda activate cv
+conda create -n lab_env Python=3.10
+conda activate lab_env
+
+git clone https://github.com/Lostbelt/behaviour_analysis.git
+cd behaviour_analysis
+pip install -r requirements.txt
 # for gpu inference needs cuda PyTorch (choose the wheel appropriate for your system/driver)
 # CUDA example:
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
